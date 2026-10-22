@@ -1032,6 +1032,30 @@
   <data name="Settings_ModelInstallFailed" xml:space="preserve">
     <value>به‌روزرسانی نصب نشد. بعداً دوباره امتحان کنید.</value>
   </data>
+  <data name="Settings_ModelImport" xml:space="preserve">
+    <value>ایمپورت مدل</value>
+  </data>
+  <data name="Settings_ModelImportHint" xml:space="preserve">
+    <value>فایل zip ساخته‌شده با Trainer</value>
+  </data>
+  <data name="Settings_ModelImported" xml:space="preserve">
+    <value>مدل نسخه‌ی {0} ایمپورت شد</value>
+  </data>
+  <data name="Settings_ModelImportFailed" xml:space="preserve">
+    <value>این فایل مدل قابل استفاده‌ای نیست</value>
+  </data>
+  <data name="Settings_ModelRevert" xml:space="preserve">
+    <value>برگشت به مدل رسمی</value>
+  </data>
+  <data name="Settings_ModelRevertConfirm" xml:space="preserve">
+    <value>مدل خودتون حذف بشه و مدل رسمی برگرده؟</value>
+  </data>
+  <data name="Settings_ModelCustom" xml:space="preserve">
+    <value>{0} (سفارشی)</value>
+  </data>
+  <data name="Settings_ModelCustomFailed" xml:space="preserve">
+    <value>مدل سفارشی بارگذاری نشد؛ فعلاً مدل رسمی استفاده می‌شه</value>
+  </data>
   <data name="Settings_Megabytes" xml:space="preserve">
     <value>{0} مگابایت</value>
   </data>

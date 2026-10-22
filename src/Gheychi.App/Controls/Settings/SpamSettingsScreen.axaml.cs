@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Gheychi.App.Localization;
 using Gheychi.App.Platforms.Android.Notifications;
 using Gheychi.App.Services;
@@ -75,16 +76,44 @@ public partial class SpamSettingsScreen : SettingsScreen
         TrustedHint.Text = trusted == 0 ? loc["Settings_TrustedNone"] : string.Format(loc["Settings_TrustedHint"], SettingsUi.Number(trusted));
 
         ModelVersion.Text = loc["Settings_ModelNone"];
-        _ = ShowModelVersionAsync();
-        _ = ShowModelUpdateAsync();
+        ModelVersionHint.Text = loc["Settings_ModelHint"];
+        _ = RefreshModelSectionAsync();
+    }
+
+    private async Task RefreshModelSectionAsync()
+    {
+        ShowModelCustomRows();
+        await ShowModelVersionAsync();
+        await ShowModelUpdateAsync();
+    }
+
+    private void ShowModelCustomRows()
+    {
+        var custom = _models?.IsCustomActive == true;
+        ModelUpdateRow.IsVisible = !custom;
+        ModelImportDivider.IsVisible = !custom;
+        ModelRevertDivider.IsVisible = custom;
+        ModelRevertRow.IsVisible = custom;
     }
 
     private async Task ShowModelVersionAsync()
     {
         try
         {
+            var loc = LocalizationManager.Instance;
+            ModelVersionHint.Text = _models?.CustomLoadFailed == true
+                ? loc["Settings_ModelCustomFailed"]
+                : loc["Settings_ModelHint"];
+
             if (_models is not null && await _models.GetActiveVersionAsync() is { } version)
-                ModelVersion.Text = string.Format(LocalizationManager.Instance["Spam_InfoModelValue"], SettingsUi.Number(version));
+            {
+                var versionText = SettingsUi.Number(version);
+                ModelVersion.Text = _models.IsCustomActive
+                    ? string.Format(loc["Settings_ModelCustom"], versionText)
+                    : string.Format(loc["Spam_InfoModelValue"], versionText);
+            }
+            else
+                ModelVersion.Text = loc["Settings_ModelNone"];
         }
         catch (Exception ex)
         {
@@ -107,6 +136,8 @@ public partial class SpamSettingsScreen : SettingsScreen
 
         if (_updating)
             return;
+
+        ShowModelCustomRows();
 
         var loc = LocalizationManager.Instance;
         ModelUpdateTitle.Text = loc[_available is null ? "Settings_ModelUpdate" : "Settings_ModelUpdateAvailable"];
@@ -275,6 +306,85 @@ public partial class SpamSettingsScreen : SettingsScreen
         {
             _updating = false;
             await ShowModelUpdateAsync();
+        }
+    }
+
+    private async void OnModelImportTapped(object? sender, TappedEventArgs e)
+    {
+        if (_models is null)
+            return;
+
+        var loc = LocalizationManager.Instance;
+        try
+        {
+            if (TopLevel.GetTopLevel(MainView.Current)?.StorageProvider is not { } storage)
+                return;
+
+            var options = new FilePickerOpenOptions
+            {
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("ZIP") { Patterns = ["*.zip"] },
+                ],
+            };
+
+            var files = await storage.OpenFilePickerAsync(options);
+            if (files is not { Count: > 0 })
+                return;
+
+            await using var stream = await files[0].OpenReadAsync();
+            var imported = await _models.ImportCustomAsync(stream);
+            if (imported && await _models.GetActiveVersionAsync() is { } version)
+                Toast.Show(string.Format(loc["Settings_ModelImported"], SettingsUi.Number(version)));
+            else
+                Toast.Show(loc["Settings_ModelImportFailed"]);
+
+            await RefreshModelSectionAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Spam model import failed: {ex}");
+            Toast.Show(loc["Settings_ModelImportFailed"]);
+        }
+    }
+
+    private async void OnModelRevertTapped(object? sender, TappedEventArgs e)
+    {
+        if (_models is null)
+            return;
+
+        var loc = LocalizationManager.Instance;
+        try
+        {
+            if (!await Dialogs.AlertAsync(
+                    loc["Settings_ModelRevert"],
+                    loc["Settings_ModelRevertConfirm"],
+                    loc["Settings_ModelRevert"],
+                    loc["Chat_Cancel"],
+                    danger: true))
+                return;
+
+            await _models.RemoveCustomAsync();
+            await RefreshModelSectionAsync();
+
+            if (_modelUpdates is { } updates)
+            {
+                try
+                {
+                    await Task.Run(() => updates.CheckAsync(force: true));
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Reading the spam model update failed: {ex}");
+                }
+
+                await ShowModelUpdateAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Spam model revert failed: {ex}");
         }
     }
 }

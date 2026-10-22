@@ -172,12 +172,12 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                     <TextBlock x:Name="ModelVersion" Classes="rowTitle" />
-                                    <TextBlock Text="{loc:Translate Settings_ModelHint}" Classes="rowSubtitle" />
+                                    <TextBlock x:Name="ModelVersionHint" Classes="rowSubtitle" />
                                 </StackPanel>
                             </Grid>
                         </Border>
                         <Border Classes="divider" />
-                        <Border Classes="row" Tapped="OnModelUpdateTapped">
+                        <Border x:Name="ModelUpdateRow" Classes="row" Tapped="OnModelUpdateTapped">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                                 <Border Classes="badge">
                                     <ui:Icon Classes="badgeIcon" Data="{StaticResource Icon.Download}"
@@ -186,6 +186,33 @@
                                 <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                                     <TextBlock x:Name="ModelUpdateTitle" Classes="rowTitle" />
                                     <TextBlock x:Name="ModelUpdateHint" Classes="rowSubtitle" />
+                                </StackPanel>
+                                <ui:Icon Grid.Column="2" Classes="chevron" Data="{StaticResource Icon.ChevronRight}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="ModelImportDivider" Classes="divider" />
+                        <Border Classes="row" Tapped="OnModelImportTapped">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <Border Classes="badge">
+                                    <ui:Icon Classes="badgeIcon" Data="{StaticResource Icon.Download}"
+                                             Foreground="{theme:ThemeBrush Light=#393B3E, Dark=#DDDEDF}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:Translate Settings_ModelImport}" Classes="rowTitle" />
+                                    <TextBlock Text="{loc:Translate Settings_ModelImportHint}" Classes="rowSubtitle" />
+                                </StackPanel>
+                                <ui:Icon Grid.Column="2" Classes="chevron" Data="{StaticResource Icon.ChevronRight}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="ModelRevertDivider" Classes="divider" IsVisible="False" />
+                        <Border x:Name="ModelRevertRow" Classes="row" Tapped="OnModelRevertTapped" IsVisible="False">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <Border Classes="badge">
+                                    <ui:Icon Classes="badgeIcon" Data="{StaticResource Icon.History}"
+                                             Foreground="{theme:ThemeBrush Light=#393B3E, Dark=#DDDEDF}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{loc:Translate Settings_ModelRevert}" Classes="rowTitle" />
                                 </StackPanel>
                                 <ui:Icon Grid.Column="2" Classes="chevron" Data="{StaticResource Icon.ChevronRight}" />
                             </Grid>
