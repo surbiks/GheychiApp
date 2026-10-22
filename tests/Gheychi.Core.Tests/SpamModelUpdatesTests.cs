@@ -114,6 +114,26 @@ public sealed class SpamModelUpdatesTests
         Assert.Equal(Release(3), _state.Available);
     }
 
+    [Fact]
+    public async Task Check_WhileCustomActive_DoesNotAskSource()
+    {
+        _updater.IsCustomActive = true;
+        _source.Latest = Release(3);
+
+        Assert.Null(await Create().CheckAsync(force: true));
+        Assert.Equal(0, _source.LatestCalls);
+    }
+
+    [Fact]
+    public async Task Available_WhileCustomActive_IsNull()
+    {
+        _state.Available = Release(3);
+        _updater.IsCustomActive = true;
+
+        Assert.Null(await Create().GetAvailableAsync());
+        Assert.Null(_state.Available);
+    }
+
     private sealed class FakeSource : ISpamModelSource
     {
         public SpamModelRelease? Latest { get; set; }
@@ -149,6 +169,8 @@ public sealed class SpamModelUpdatesTests
     {
         public int? Active { get; set; }
         public bool Accept { get; set; } = true;
+        public bool IsCustomActive { get; set; }
+        public bool CustomLoadFailed => false;
         public string? InstalledManifest { get; private set; }
 
         public Task<int?> GetActiveVersionAsync(CancellationToken cancellationToken = default) => Task.FromResult(Active);
@@ -162,6 +184,11 @@ public sealed class SpamModelUpdatesTests
             Active = System.Text.Json.JsonDocument.Parse(InstalledManifest).RootElement.GetProperty("version").GetInt32();
             return Task.FromResult(true);
         }
+
+        public Task<bool> ImportCustomAsync(Stream zip, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task RemoveCustomAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeState : ISpamModelUpdateState

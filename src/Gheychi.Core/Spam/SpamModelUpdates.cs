@@ -27,6 +27,12 @@ public sealed class SpamModelUpdates
     /// <summary>The update found by the last check, while it is still newer than the model in use.</summary>
     public async Task<SpamModelRelease?> GetAvailableAsync(CancellationToken cancellationToken = default)
     {
+        if (_updater.IsCustomActive)
+        {
+            SetAvailable(null);
+            return null;
+        }
+
         var available = _state.Available;
         if (available is null || available.Version > await ActiveVersionAsync(cancellationToken))
             return available;
@@ -46,6 +52,12 @@ public sealed class SpamModelUpdates
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            if (_updater.IsCustomActive)
+            {
+                SetAvailable(null);
+                return null;
+            }
+
             var now = _utcNow();
             if (!force && _state.LastCheckedUtc is { } last && last <= now && now - last < CheckInterval)
                 return await GetAvailableAsync(cancellationToken);

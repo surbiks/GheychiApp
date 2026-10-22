@@ -67,6 +67,42 @@ public sealed class MlNetSpamClassifier : ISpamClassifier, ISpamModelUpdater
         }
     }
 
+    public bool IsCustomActive => _store.HasCustom;
+
+    public bool CustomLoadFailed => _store.CustomLoadFailed;
+
+    public async Task<bool> ImportCustomAsync(Stream zip, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var installed = await Task.Run(() => _store.InstallCustomAsync(zip, cancellationToken));
+            if (installed is null)
+                return false;
+
+            Volatile.Write(ref _model, installed);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task RemoveCustomAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            _store.RemoveCustom();
+            Volatile.Write(ref _model, await Task.Run(() => _store.LoadActiveAsync(cancellationToken)));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task<SpamModel?> GetModelAsync(CancellationToken cancellationToken)
     {
         var model = Volatile.Read(ref _model);

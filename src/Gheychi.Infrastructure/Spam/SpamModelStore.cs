@@ -27,12 +27,14 @@ public sealed class SpamModelStore
     public bool HasCustom => Directory.Exists(CustomDirectory);
 
     /// <summary>Set by <see cref="LoadActiveAsync"/> when <see cref="HasCustom"/> is true but the folder did not load.</summary>
-    public bool CustomLoadFailed { get; private set; }
+    public bool CustomLoadFailed => _customLoadFailed;
+
+    private volatile bool _customLoadFailed;
 
     /// <summary>The newest model that loads, or null when there is none.</summary>
     public async Task<SpamModel?> LoadActiveAsync(CancellationToken cancellationToken = default)
     {
-        CustomLoadFailed = false;
+        _customLoadFailed = false;
 
         if (HasCustom)
         {
@@ -42,7 +44,7 @@ public sealed class SpamModelStore
             }
             catch (InvalidDataException ex)
             {
-                CustomLoadFailed = true;
+                _customLoadFailed = true;
                 System.Diagnostics.Debug.WriteLine($"Custom spam model is unusable: {ex}");
             }
         }
@@ -171,6 +173,7 @@ public sealed class SpamModelStore
             if (Directory.Exists(CustomDirectory))
                 Directory.Delete(CustomDirectory, recursive: true);
             Directory.Move(staging, CustomDirectory);
+            _customLoadFailed = false;
             return loaded;
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
@@ -188,6 +191,7 @@ public sealed class SpamModelStore
     public void RemoveCustom()
     {
         TryDelete(CustomDirectory);
+        _customLoadFailed = false;
     }
 
     /// <summary>Removes every installed version older than <paramref name="version"/>, and leftovers of interrupted installs.</summary>

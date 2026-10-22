@@ -231,6 +231,23 @@ public sealed class SpamModelStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Classifier_ImportCustom_SwitchesScoringAndRemoveRestores()
+    {
+        var classifier = new MlNetSpamClassifier(CreateStore());
+        await using var manifest = Manifest(1);
+        await using var model = BundledModel();
+        await using var zip = Zip(manifest, model);
+
+        Assert.True(await classifier.ImportCustomAsync(zip));
+        Assert.True(classifier.IsCustomActive);
+        Assert.Equal(1, (await classifier.ScoreAsync("hello"))?.ModelVersion);
+
+        await classifier.RemoveCustomAsync();
+        Assert.False(classifier.IsCustomActive);
+        Assert.Equal(Bundled.Version, (await classifier.ScoreAsync("hello"))?.ModelVersion);
+    }
+
+    [Fact]
     public async Task Custom_ReplacesPreviousCustom()
     {
         var store = CreateStore();
@@ -332,6 +349,27 @@ public sealed class SpamModelStoreTests : IDisposable
         Assert.Equal(Bundled.Version, active.Version);
         Assert.True(fresh.HasCustom);
         Assert.True(fresh.CustomLoadFailed);
+    }
+
+    [Fact]
+    public async Task Custom_FailedLoad_ClearedAfterGoodImport()
+    {
+        var store = CreateStore();
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        await File.WriteAllBytesAsync(Path.Combine(_root, SpamModelStore.CustomDirectoryName, "next.mlnet"), [1, 2, 3, 4]);
+        await store.LoadActiveAsync();
+        Assert.True(store.CustomLoadFailed);
+
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        Assert.False(store.CustomLoadFailed);
     }
 
     [Fact]
