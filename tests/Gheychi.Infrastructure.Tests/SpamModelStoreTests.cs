@@ -231,6 +231,21 @@ public sealed class SpamModelStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Classifier_InstallRefusedWhileCustomActive()
+    {
+        var classifier = new MlNetSpamClassifier(CreateStore());
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.True(await classifier.ImportCustomAsync(zip));
+
+        await using var updateManifest = Manifest(Bundled.Version + 10);
+        await using var updateModel = BundledModel();
+        Assert.False(await classifier.InstallAsync(updateManifest, updateModel));
+        Assert.Equal(1, (await classifier.ScoreAsync("hello"))?.ModelVersion);
+    }
+
+    [Fact]
     public async Task Classifier_ImportCustom_SwitchesScoringAndRemoveRestores()
     {
         var classifier = new MlNetSpamClassifier(CreateStore());

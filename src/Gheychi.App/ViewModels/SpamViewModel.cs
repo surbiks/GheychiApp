@@ -88,7 +88,7 @@ public sealed class SpamViewModel : INotifyPropertyChanged
 
     public int SelectedCount => _all.Count(i => i.IsSelected);
 
-    public string SelectedCountText => SelectedCount.ToString();
+    public string SelectedCountText => LocalizedNumbers.Number(SelectedCount);
 
     public IReadOnlyList<SpamItem> SelectedItems => _all.Where(i => i.IsSelected).ToList();
 

@@ -51,6 +51,9 @@ public sealed class MlNetSpamClassifier : ISpamClassifier, ISpamModelUpdater
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            if (_store.HasCustom)
+                return false;
+
             var active = await LoadOnceAsync(cancellationToken);
             var installed = await Task.Run(() => _store.InstallAsync(manifest, model, active?.Version ?? 0, cancellationToken));
             if (installed is null)

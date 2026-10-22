@@ -15,6 +15,7 @@ namespace Gheychi.App.Pages;
 public partial class SpamPage : UserControl
 {
     private bool _loaded;
+    private bool _searchBarDeferredForSelection;
     private ScrollViewer? _scroll;
     private bool _holdFired;
     private long _lastTappedItemId;
@@ -119,8 +120,25 @@ public partial class SpamPage : UserControl
             SyncHeaderVisibility();
     }
 
-    private void SyncHeaderVisibility() =>
-        AppHeader.IsVisible = !SearchBar.IsVisible && Vm is not { IsSelectionMode: true };
+    private void SyncHeaderVisibility()
+    {
+        var inSelection = Vm is { IsSelectionMode: true };
+        if (inSelection)
+        {
+            if (SearchBar.IsVisible)
+            {
+                _searchBarDeferredForSelection = true;
+                SearchBar.IsVisible = false;
+            }
+        }
+        else if (_searchBarDeferredForSelection)
+        {
+            _searchBarDeferredForSelection = false;
+            SearchBar.IsVisible = true;
+        }
+
+        AppHeader.IsVisible = !SearchBar.IsVisible && !inSelection;
+    }
 
     private void OnSearchTapped(object? sender, TappedEventArgs e)
     {

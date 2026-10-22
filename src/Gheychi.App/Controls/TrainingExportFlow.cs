@@ -96,7 +96,7 @@ internal static class TrainingExportFlow
                 return;
             }
 
-            Ui.Toast.Show(string.Format(loc["Export_Done"], prepared.Count));
+            Ui.Toast.Show(string.Format(loc["Export_Done"], LocalizedNumbers.Number(prepared.Count)));
         }
         catch (Exception ex)
         {

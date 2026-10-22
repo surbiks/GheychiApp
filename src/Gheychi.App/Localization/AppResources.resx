@@ -1051,7 +1051,7 @@
     <value>Remove your model and go back to the official one?</value>
   </data>
   <data name="Settings_ModelCustom" xml:space="preserve">
-    <value>{0} (custom)</value>
+    <value>Version {0} (custom)</value>
   </data>
   <data name="Settings_ModelCustomFailed" xml:space="preserve">
     <value>Your model did not load; the official model is in use for now</value>

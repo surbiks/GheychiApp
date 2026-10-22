@@ -1051,7 +1051,7 @@
     <value>مدل خودتون حذف بشه و مدل رسمی برگرده؟</value>
   </data>
   <data name="Settings_ModelCustom" xml:space="preserve">
-    <value>{0} (سفارشی)</value>
+    <value>نسخه‌ی {0} (سفارشی)</value>
   </data>
   <data name="Settings_ModelCustomFailed" xml:space="preserve">
     <value>مدل سفارشی بارگذاری نشد؛ فعلاً مدل رسمی استفاده می‌شه</value>

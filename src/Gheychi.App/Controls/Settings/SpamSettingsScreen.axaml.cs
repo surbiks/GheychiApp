@@ -311,7 +311,7 @@ public partial class SpamSettingsScreen : SettingsScreen
 
     private async void OnModelImportTapped(object? sender, TappedEventArgs e)
     {
-        if (_models is null)
+        if (_models is null || _updating)
             return;
 
         var loc = LocalizationManager.Instance;
