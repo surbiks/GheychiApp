@@ -21,6 +21,9 @@
         <AvaloniaNameGeneratorBehavior>InitializeComponent</AvaloniaNameGeneratorBehavior>
     </PropertyGroup>
 
+    <!-- Signing key lives next to the repo in ../signing; when present, Debug and Release builds use it so installs replace each other without losing data; CI passes its key on the command line instead. -->
+    <Import Project="$(MSBuildThisFileDirectory)..\..\..\signing\signing.props" Condition="Exists('$(MSBuildThisFileDirectory)..\..\..\signing\signing.props')" />
+
     <!-- Full AOT: with profiled AOT only the startup path is precompiled and everything else (opening a chat, the
          profile, search) was JIT-compiled the first time it ran, which showed as a pause. Larger APK. -->
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">
