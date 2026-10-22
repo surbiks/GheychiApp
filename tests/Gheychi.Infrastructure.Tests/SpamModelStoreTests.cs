@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Nodes;
 using Gheychi.Core.Spam;
@@ -40,6 +41,24 @@ public sealed class SpamModelStoreTests : IDisposable
     }
 
     private static Stream BundledModel() => File.OpenRead(Path.Combine(BundledDirectory, Bundled.ModelFile));
+
+    private static MemoryStream Zip(Stream manifest, Stream model, string modelEntryName = "next.mlnet")
+    {
+        var zip = new MemoryStream();
+        using (var archive = new ZipArchive(zip, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var manifestEntry = archive.CreateEntry(SpamModelManifest.FileName);
+            using (var entry = manifestEntry.Open())
+                manifest.CopyTo(entry);
+
+            var modelEntry = archive.CreateEntry(modelEntryName);
+            using (var entry = modelEntry.Open())
+                model.CopyTo(entry);
+        }
+
+        zip.Position = 0;
+        return zip;
+    }
 
     private static string VersionName(int version) => version.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -177,6 +196,142 @@ public sealed class SpamModelStoreTests : IDisposable
         var json = $$"""{"version":2,"model":"{{model}}","textColumn":"t","labelColumn":"l","spamLabel":"s"}""";
 
         Assert.Throws<InvalidDataException>(() => SpamModelManifest.Parse(Encoding.UTF8.GetBytes(json)));
+    }
+
+    [Fact]
+    public async Task Custom_InstallsWithLowerVersionAndLoadsActive()
+    {
+        var store = CreateStore();
+        await using var manifest = Manifest(1);
+        await using var model = BundledModel();
+        await using var zip = Zip(manifest, model);
+
+        var installed = await store.InstallCustomAsync(zip);
+        Assert.NotNull(installed);
+        Assert.Equal(1, installed.Version);
+        Assert.True(store.HasCustom);
+
+        var active = await CreateStore().LoadActiveAsync();
+        Assert.NotNull(active);
+        Assert.Equal(1, active.Version);
+    }
+
+    [Fact]
+    public async Task Custom_WinsOverNewerBundled()
+    {
+        var store = CreateStore();
+        await using var manifest = Manifest(1);
+        await using var model = BundledModel();
+        await using var zip = Zip(manifest, model);
+        Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        var score = await new MlNetSpamClassifier(CreateStore()).ScoreAsync("hello");
+        Assert.NotNull(score);
+        Assert.Equal(1, score.Value.ModelVersion);
+    }
+
+    [Fact]
+    public async Task Custom_ReplacesPreviousCustom()
+    {
+        var store = CreateStore();
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        await using (var manifest = Manifest(2))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        var active = await CreateStore().LoadActiveAsync();
+        Assert.NotNull(active);
+        Assert.Equal(2, active.Version);
+        Assert.Equal([SpamModelStore.CustomDirectoryName], Directory.GetDirectories(_root).Select(Path.GetFileName));
+        Assert.DoesNotContain(Directory.GetDirectories(_root), path => Path.GetFileName(path)!.StartsWith(".staging-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Custom_RejectsBrokenPackages()
+    {
+        var store = CreateStore();
+
+        await using (var bad = new MemoryStream("not a zip"u8.ToArray()))
+            Assert.Null(await store.InstallCustomAsync(bad));
+        Assert.False(store.HasCustom);
+
+        await using (var manifest = Manifest(1))
+        {
+            await using var zip = new MemoryStream();
+            using (var archive = new ZipArchive(zip, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                var manifestEntry = archive.CreateEntry(SpamModelManifest.FileName);
+                using (var entry = manifestEntry.Open())
+                    manifest.CopyTo(entry);
+            }
+
+            zip.Position = 0;
+            Assert.Null(await store.InstallCustomAsync(zip));
+        }
+        Assert.False(store.HasCustom);
+
+        await using (var manifest = Manifest(1, json => json["normalizer"] = TextNormalizer.Version + 1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.Null(await store.InstallCustomAsync(zip));
+        Assert.False(store.HasCustom);
+    }
+
+    [Fact]
+    public async Task Custom_RejectedImportKeepsExistingCustom()
+    {
+        var store = CreateStore();
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        await using (var bad = new MemoryStream("not a zip"u8.ToArray()))
+            Assert.Null(await store.InstallCustomAsync(bad));
+
+        var active = await CreateStore().LoadActiveAsync();
+        Assert.NotNull(active);
+        Assert.Equal(1, active.Version);
+    }
+
+    [Fact]
+    public async Task RemoveCustom_FallsBackToOfficial()
+    {
+        var store = CreateStore();
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        store.RemoveCustom();
+
+        var active = await CreateStore().LoadActiveAsync();
+        Assert.NotNull(active);
+        Assert.Equal(Bundled.Version, active.Version);
+    }
+
+    [Fact]
+    public async Task Custom_UnloadableFallsBackAndFlags()
+    {
+        var store = CreateStore();
+        await using (var manifest = Manifest(1))
+        await using (var model = BundledModel())
+        await using (var zip = Zip(manifest, model))
+            Assert.NotNull(await store.InstallCustomAsync(zip));
+
+        await File.WriteAllBytesAsync(Path.Combine(_root, SpamModelStore.CustomDirectoryName, "next.mlnet"), [1, 2, 3, 4]);
+
+        var fresh = CreateStore();
+        var active = await fresh.LoadActiveAsync();
+        Assert.NotNull(active);
+        Assert.Equal(Bundled.Version, active.Version);
+        Assert.True(fresh.HasCustom);
+        Assert.True(fresh.CustomLoadFailed);
     }
 
     [Fact]

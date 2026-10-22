@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Compression;
 
 namespace Gheychi.Infrastructure.Spam;
 
@@ -10,6 +11,8 @@ public sealed class SpamModelStore
 {
     private const string StagingPrefix = ".staging-";
 
+    public const string CustomDirectoryName = "custom";
+
     private readonly string _root;
     private readonly Func<string, Task<Stream>> _openBundledFile;
 
@@ -20,9 +23,30 @@ public sealed class SpamModelStore
         _openBundledFile = openBundledFile;
     }
 
+    /// <summary>True when an imported model folder exists, even if it no longer loads.</summary>
+    public bool HasCustom => Directory.Exists(CustomDirectory);
+
+    /// <summary>Set by <see cref="LoadActiveAsync"/> when <see cref="HasCustom"/> is true but the folder did not load.</summary>
+    public bool CustomLoadFailed { get; private set; }
+
     /// <summary>The newest model that loads, or null when there is none.</summary>
     public async Task<SpamModel?> LoadActiveAsync(CancellationToken cancellationToken = default)
     {
+        CustomLoadFailed = false;
+
+        if (HasCustom)
+        {
+            try
+            {
+                return SpamModel.Load(CustomDirectory);
+            }
+            catch (InvalidDataException ex)
+            {
+                CustomLoadFailed = true;
+                System.Diagnostics.Debug.WriteLine($"Custom spam model is unusable: {ex}");
+            }
+        }
+
         var bundled = await InstallBundledIfNewerAsync(cancellationToken);
         if (bundled is not null)
             return bundled;
@@ -48,6 +72,18 @@ public sealed class SpamModelStore
     /// </summary>
     public async Task<int?> PeekActiveVersionAsync(CancellationToken cancellationToken = default)
     {
+        if (HasCustom)
+        {
+            try
+            {
+                return SpamModelManifest.Read(Path.Combine(CustomDirectory, SpamModelManifest.FileName)).Version;
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Custom spam model manifest unreadable: {ex}");
+            }
+        }
+
         var newest = 0;
         try
         {
@@ -82,12 +118,9 @@ public sealed class SpamModelStore
             if (parsed.Version <= activeVersion)
                 return null;
 
-            Directory.CreateDirectory(staging);
-            await File.WriteAllBytesAsync(Path.Combine(staging, SpamModelManifest.FileName), manifestBytes, cancellationToken);
-            await using (var file = File.Create(Path.Combine(staging, parsed.ModelFile)))
-                await model.CopyToAsync(file, cancellationToken);
-
-            var loaded = SpamModel.Load(staging);
+            var loaded = await StageAndLoadAsync(staging, parsed, manifestBytes, model, cancellationToken);
+            if (loaded is null)
+                return null;
 
             var target = VersionDirectory(parsed.Version);
             if (Directory.Exists(target))
@@ -104,6 +137,57 @@ public sealed class SpamModelStore
         {
             TryDelete(staging);
         }
+    }
+
+    /// <summary>
+    /// Installs an imported zip package into <see cref="CustomDirectoryName"/> when it validates. Null when rejected;
+    /// existing custom and versioned folders are untouched on rejection.
+    /// </summary>
+    public async Task<SpamModel?> InstallCustomAsync(Stream zip, CancellationToken cancellationToken = default)
+    {
+        var staging = Path.Combine(_root, StagingPrefix + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var zipCopy = new MemoryStream();
+            await zip.CopyToAsync(zipCopy, cancellationToken);
+            zipCopy.Position = 0;
+
+            using var archive = new ZipArchive(zipCopy, ZipArchiveMode.Read);
+            var manifestEntry = archive.GetEntry(SpamModelManifest.FileName);
+            if (manifestEntry is null)
+                return null;
+
+            var manifestBytes = await ReadAllAsync(manifestEntry.Open(), cancellationToken);
+            var parsed = SpamModelManifest.Parse(manifestBytes);
+
+            var modelEntry = archive.GetEntry(parsed.ModelFile);
+            if (modelEntry is null)
+                return null;
+
+            var loaded = await StageAndLoadAsync(staging, parsed, manifestBytes, modelEntry.Open(), cancellationToken);
+            if (loaded is null)
+                return null;
+
+            if (Directory.Exists(CustomDirectory))
+                Directory.Delete(CustomDirectory, recursive: true);
+            Directory.Move(staging, CustomDirectory);
+            return loaded;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Custom spam model install failed: {ex}");
+            return null;
+        }
+        finally
+        {
+            TryDelete(staging);
+        }
+    }
+
+    /// <summary>Removes the imported model so bundled and downloaded versions can become active again.</summary>
+    public void RemoveCustom()
+    {
+        TryDelete(CustomDirectory);
     }
 
     /// <summary>Removes every installed version older than <paramref name="version"/>, and leftovers of interrupted installs.</summary>
@@ -142,6 +226,32 @@ public sealed class SpamModelStore
             return null;
         }
     }
+
+    /// <summary>Validates manifest and model bytes in a staging folder before any live directory is replaced.</summary>
+    private static async Task<SpamModel?> StageAndLoadAsync(
+        string staging,
+        SpamModelManifest parsed,
+        byte[] manifestBytes,
+        Stream model,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Directory.CreateDirectory(staging);
+            await File.WriteAllBytesAsync(Path.Combine(staging, SpamModelManifest.FileName), manifestBytes, cancellationToken);
+            await using (var file = File.Create(Path.Combine(staging, parsed.ModelFile)))
+                await model.CopyToAsync(file, cancellationToken);
+
+            return SpamModel.Load(staging);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Spam model staging failed: {ex}");
+            return null;
+        }
+    }
+
+    private string CustomDirectory => Path.Combine(_root, CustomDirectoryName);
 
     /// <summary>Newest first.</summary>
     private List<int> InstalledVersions()
