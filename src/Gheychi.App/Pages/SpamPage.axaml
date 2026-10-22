@@ -11,8 +11,9 @@
 
     <Grid RowDefinitions="Auto,Auto,Auto,*">
 
-        <!-- App header -->
-        <Grid x:Name="AppHeader" Grid.Row="0" Margin="10,10,10,12" ColumnDefinitions="Auto,*,Auto,Auto">
+        <!-- App header or multi-select bar -->
+        <Panel Grid.Row="0">
+        <Grid x:Name="AppHeader" Margin="10,10,10,12" ColumnDefinitions="Auto,*,Auto,Auto">
             <Border Grid.Column="0"
                     Width="40"
                     Height="40"
@@ -44,6 +45,41 @@
                 <ui:Icon Data="{StaticResource Icon.Search}" Width="20" Height="20" Foreground="{theme:ThemeBrush Light=#2E3032, Dark=#E8EAED}" />
             </Border>
         </Grid>
+
+        <Grid x:Name="SelectionHeader"
+              IsVisible="{Binding IsSelectionMode}"
+              Margin="16,10,16,12"
+              ColumnDefinitions="Auto,*,Auto"
+              ColumnSpacing="6"
+              VerticalAlignment="Center">
+            <Border Grid.Column="0"
+                    Width="42"
+                    Height="42"
+                    CornerRadius="21"
+                    Background="Transparent"
+                    Tapped="OnExitSelectionModeTapped"
+                    AutomationProperties.Name="{loc:Translate Chat_Cancel}">
+                <ui:Icon Data="{StaticResource Icon.Close}" Width="20" Height="20" Foreground="{theme:ThemeBrush Light=#1B1E24, Dark=#E8EAED}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding SelectedCountText}"
+                       FontSize="18"
+                       FontFamily="{x:Static app:AppFonts.Bold}"
+                       Foreground="{theme:ThemeBrush Light=#1B1E24, Dark=#E8EAED}"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Left"
+                       Margin="8,0,0,0" />
+            <Border Grid.Column="2"
+                    Width="42"
+                    Height="42"
+                    CornerRadius="21"
+                    Background="Transparent"
+                    Tapped="OnExportSelectedTapped"
+                    AutomationProperties.Name="{loc:Translate Export_ForTraining}">
+                <ui:Icon Data="{StaticResource Icon.Download}" Width="21" Height="21" Foreground="{theme:ThemeBrush Light=#1B1E24, Dark=#E8EAED}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+        </Grid>
+        </Panel>
 
         <!-- Search bar, in place of the header while searching -->
         <Border x:Name="SearchBar"
@@ -117,7 +153,8 @@
         <ItemsControl x:Name="SpamList"
                       Margin="0,4,0,0"
                       ItemsSource="{Binding Items}"
-                      Tapped="OnListTapped">
+                      Tapped="OnListTapped"
+                      Holding="OnListHolding">
             <ItemsControl.Template>
                 <ControlTemplate TargetType="ItemsControl">
                     <ScrollViewer x:Name="SpamScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
@@ -145,7 +182,7 @@
                     <vm:SpamTemplateSelector.SpamTemplate>
                         <DataTemplate x:DataType="vm:SpamItem">
                             <!-- One flat grid per row: the avatar spans both lines; the whole row is the tap target. -->
-                            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto" Background="Transparent">
+                            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto" Background="{Binding RowBackgroundColor}">
                                 <Border Grid.Row="0"
                                         Grid.RowSpan="2"
                                         Grid.Column="0"
@@ -154,8 +191,22 @@
                                         Margin="16,10,12,0"
                                         CornerRadius="20"
                                         Background="{theme:ThemeBrush Light=#FCF0DC, Dark=#3A3020}"
-                                        VerticalAlignment="Top">
-                                    <ui:Icon Data="{StaticResource Icon.SpamAlert}" Width="21" Height="21" Foreground="{theme:ThemeBrush Light=#A8660A, Dark=#E8C27A}" />
+                                        VerticalAlignment="Top"
+                                        IsHitTestVisible="False">
+                                    <Panel>
+                                        <ui:Icon IsVisible="{Binding IsNotSelected}"
+                                                 Data="{StaticResource Icon.SpamAlert}"
+                                                 Width="21"
+                                                 Height="21"
+                                                 Foreground="{theme:ThemeBrush Light=#A8660A, Dark=#E8C27A}" />
+                                        <ui:Icon IsVisible="{Binding IsSelected}"
+                                                 Data="{StaticResource Icon.Check}"
+                                                 Width="22"
+                                                 Height="22"
+                                                 Foreground="{theme:AccentBrush Role=Text}"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center" />
+                                    </Panel>
                                 </Border>
 
                                 <!-- The sender gives way first; the confidence and time are always shown whole -->

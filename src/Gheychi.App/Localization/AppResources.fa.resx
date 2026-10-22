@@ -192,6 +192,27 @@
   <data name="Archive_NoMatches" xml:space="preserve">
     <value>گفتگوی مطابقی پیدا نشد</value>
   </data>
+  <data name="Export_Done" xml:space="preserve">
+    <value>{0} پیام اکسپورت شد</value>
+  </data>
+  <data name="Export_Empty" xml:space="preserve">
+    <value>پیامی برای اکسپورت نبود</value>
+  </data>
+  <data name="Export_Failed" xml:space="preserve">
+    <value>اکسپورت انجام نشد</value>
+  </data>
+  <data name="Export_ForTraining" xml:space="preserve">
+    <value>اکسپورت برای آموزش</value>
+  </data>
+  <data name="Export_LabelHam" xml:space="preserve">
+    <value>پیام معمولی</value>
+  </data>
+  <data name="Export_LabelSpam" xml:space="preserve">
+    <value>هرزنامه</value>
+  </data>
+  <data name="Export_LabelTitle" xml:space="preserve">
+    <value>برچسب این پیام‌ها</value>
+  </data>
   <data name="Messages_Unarchive" xml:space="preserve">
     <value>خروج از بایگانی</value>
   </data>

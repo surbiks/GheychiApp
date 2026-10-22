@@ -21,6 +21,7 @@ public sealed class SpamViewModel : INotifyPropertyChanged
     private Task? _loadTask;
     private bool _reloadPending;
     private string _searchText = string.Empty;
+    private bool _isSelectionMode;
 
     public SpamViewModel(
         ISpamMessageRepository repository,
@@ -68,6 +69,70 @@ public sealed class SpamViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             ApplyFilter();
         }
+    }
+
+    public bool IsSelectionMode
+    {
+        get => _isSelectionMode;
+        private set
+        {
+            if (_isSelectionMode == value)
+                return;
+            _isSelectionMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsNotSelectionMode));
+        }
+    }
+
+    public bool IsNotSelectionMode => !IsSelectionMode;
+
+    public int SelectedCount => _all.Count(i => i.IsSelected);
+
+    public string SelectedCountText => SelectedCount.ToString();
+
+    public IReadOnlyList<SpamItem> SelectedItems => _all.Where(i => i.IsSelected).ToList();
+
+    public void EnterSelectionMode(SpamItem initial)
+    {
+        initial.IsSelected = true;
+        IsSelectionMode = true;
+        NotifySelectionChanged();
+    }
+
+    public void ToggleSelection(SpamItem item)
+    {
+        item.IsSelected = !item.IsSelected;
+        if (SelectedCount == 0)
+            ExitSelectionMode();
+        else
+            NotifySelectionChanged();
+    }
+
+    public void ExitSelectionMode()
+    {
+        foreach (var item in _all)
+            item.IsSelected = false;
+        IsSelectionMode = false;
+        NotifySelectionChanged();
+    }
+
+    private void NotifySelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedCountText));
+        OnPropertyChanged(nameof(SelectedItems));
+    }
+
+    /// <summary>Reloads and deletes replace <see cref="_all"/> entries; drop selection mode when nothing is left.</summary>
+    private void SyncSelectionAfterAllChanged()
+    {
+        if (!IsSelectionMode)
+            return;
+
+        if (SelectedCount == 0)
+            ExitSelectionMode();
+        else
+            NotifySelectionChanged();
     }
 
     /// <summary>Loads once; later calls wait for that load. Call from the UI thread.</summary>
@@ -157,6 +222,7 @@ public sealed class SpamViewModel : INotifyPropertyChanged
             _all.Clear();
             _all.AddRange(items);
             ApplyFilter();
+            SyncSelectionAfterAllChanged();
             RaiseChanged();
         }
         while (_reloadPending);
@@ -208,6 +274,7 @@ public sealed class SpamViewModel : INotifyPropertyChanged
                 Items.RemoveAt(index - 1);
         }
 
+        SyncSelectionAfterAllChanged();
         RaiseChanged();
     }
 

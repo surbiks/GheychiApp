@@ -1,8 +1,11 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Gheychi.App.Controls;
 using Gheychi.App.Localization;
 using Gheychi.App.Platforms.Android.Notifications;
 using Gheychi.App.ViewModels;
@@ -13,6 +16,9 @@ public partial class SpamPage : UserControl
 {
     private bool _loaded;
     private ScrollViewer? _scroll;
+    private bool _holdFired;
+    private long _lastTappedItemId;
+    private long _lastTappedItemTick;
 
     private SpamViewModel? Vm => DataContext as SpamViewModel;
 
@@ -24,12 +30,14 @@ public partial class SpamPage : UserControl
         if (IPlatformApplication.Current?.Services?.GetService(typeof(SpamViewModel)) is SpamViewModel viewModel)
         {
             DataContext = viewModel;
+            viewModel.PropertyChanged += OnVmPropertyChanged;
             viewModel.Items.CollectionChanged += OnItemsChanged;
             _ = LoadAsync(viewModel);
         }
 
         SpamList.TemplateApplied += (_, e) => _scroll = e.NameScope.Find<ScrollViewer>("SpamScroll");
         Ui.RowPressEffect.Attach(SpamList, SpamHost);
+        SpamList.AddHandler(PointerPressedEvent, (_, _) => _holdFired = false, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     /// <summary>Asked to open Settings on its spam section (the header's gear); the tab host does the switch.</summary>
@@ -61,6 +69,12 @@ public partial class SpamPage : UserControl
     {
         if (Overlay.HandleBack())
             return true;
+
+        if (Vm?.IsSelectionMode == true)
+        {
+            Vm.ExitSelectionMode();
+            return true;
+        }
 
         if (!SearchBar.IsVisible)
             return false;
@@ -99,10 +113,19 @@ public partial class SpamPage : UserControl
 
     private void OnSettingsTapped(object? sender, TappedEventArgs e) => OpenSpamSettingsRequested?.Invoke();
 
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SpamViewModel.IsSelectionMode))
+            SyncHeaderVisibility();
+    }
+
+    private void SyncHeaderVisibility() =>
+        AppHeader.IsVisible = !SearchBar.IsVisible && Vm is not { IsSelectionMode: true };
+
     private void OnSearchTapped(object? sender, TappedEventArgs e)
     {
-        AppHeader.IsVisible = false;
         SearchBar.IsVisible = true;
+        SyncHeaderVisibility();
         Dispatcher.UIThread.Post(() => SearchEntry.Focus(), DispatcherPriority.Loaded);
     }
 
@@ -114,16 +137,55 @@ public partial class SpamPage : UserControl
         if (Vm is not null)
             Vm.SearchText = string.Empty;
         SearchBar.IsVisible = false;
-        AppHeader.IsVisible = true;
+        SyncHeaderVisibility();
     }
 
     private void OnListTapped(object? sender, TappedEventArgs e)
     {
-        if ((e.Source as StyledElement)?.DataContext is SpamItem item)
+        if (_holdFired || (e.Source as StyledElement)?.DataContext is not SpamItem item)
+            return;
+
+        var now = Environment.TickCount64;
+        if (item.Id == _lastTappedItemId && now - _lastTappedItemTick < 300)
+            return;
+        _lastTappedItemId = item.Id;
+        _lastTappedItemTick = now;
+
+        if (Vm?.IsSelectionMode == true)
         {
-            ClearFocus();
-            Overlay.ShowMenu(item);
+            Vm.ToggleSelection(item);
+            return;
         }
+
+        ClearFocus();
+        Overlay.ShowMenu(item);
+    }
+
+    private void OnListHolding(object? sender, HoldingRoutedEventArgs e)
+    {
+        if (e.HoldingState != HoldingState.Started || (e.Source as StyledElement)?.DataContext is not SpamItem item || Vm is null)
+            return;
+
+        _holdFired = true;
+        _lastTappedItemId = item.Id;
+        _lastTappedItemTick = Environment.TickCount64;
+
+        if (!Vm.IsSelectionMode)
+            Vm.EnterSelectionMode(item);
+        else
+            Vm.ToggleSelection(item);
+    }
+
+    private void OnExitSelectionModeTapped(object? sender, TappedEventArgs e) => Vm?.ExitSelectionMode();
+
+    private async void OnExportSelectedTapped(object? sender, TappedEventArgs e)
+    {
+        if (Vm is null || Vm.SelectedCount == 0)
+            return;
+
+        var bodies = Vm.SelectedItems.Select(i => i.Message.Body).ToList();
+        await TrainingExportFlow.RunAsync(() => Task.FromResult<IReadOnlyList<string>>(bodies));
+        Vm.ExitSelectionMode();
     }
 
     private async void OnClearAllTapped(object? sender, TappedEventArgs e)

@@ -942,6 +942,35 @@ public partial class MessagesPage : UserControl, IPageSwipeClient
         await Vm.MarkSelectedAsUnreadAsync();
     }
 
+    private async void OnExportForTrainingTapped(object? sender, TappedEventArgs e)
+    {
+        e.Handled = true;
+        SelectBoxOverlay.IsVisible = false;
+        if (Vm == null || Vm.SelectedCount == 0)
+            return;
+
+        var threadIds = Vm.SelectedThreads.Select(t => t.ThreadId).ToList();
+        await TrainingExportFlow.RunAsync(async () =>
+        {
+            if (SmsService is not { } sms)
+                return [];
+
+            var bodies = new List<string>();
+            foreach (var threadId in threadIds)
+            {
+                var messages = await sms.GetMessagesAsync(threadId);
+                foreach (var message in messages)
+                {
+                    if (!message.IsOutgoing)
+                        bodies.Add(message.Body);
+                }
+            }
+
+            return bodies;
+        });
+        Vm.ExitSelectionMode();
+    }
+
     // ---- Folders --------------------------------------------------------------------------------
 
     // Releasing a finger that held a tab also reports a tap, which would open the folder just offered a menu.

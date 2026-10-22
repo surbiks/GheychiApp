@@ -192,6 +192,27 @@
   <data name="Archive_NoMatches" xml:space="preserve">
     <value>No matching conversations</value>
   </data>
+  <data name="Export_Done" xml:space="preserve">
+    <value>{0} messages exported</value>
+  </data>
+  <data name="Export_Empty" xml:space="preserve">
+    <value>No messages to export</value>
+  </data>
+  <data name="Export_Failed" xml:space="preserve">
+    <value>Export failed</value>
+  </data>
+  <data name="Export_ForTraining" xml:space="preserve">
+    <value>Export for training</value>
+  </data>
+  <data name="Export_LabelHam" xml:space="preserve">
+    <value>Normal message</value>
+  </data>
+  <data name="Export_LabelSpam" xml:space="preserve">
+    <value>Spam</value>
+  </data>
+  <data name="Export_LabelTitle" xml:space="preserve">
+    <value>Label these messages as</value>
+  </data>
   <data name="Messages_Unarchive" xml:space="preserve">
     <value>Unarchive</value>
   </data>
