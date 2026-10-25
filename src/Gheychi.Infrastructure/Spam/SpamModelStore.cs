@@ -159,20 +159,45 @@ public sealed class SpamModelStore
             if (manifestEntry is null)
                 return null;
 
-            var manifestBytes = await ReadAllAsync(manifestEntry.Open(), cancellationToken);
+            await using var manifestStream = manifestEntry.Open();
+            var manifestBytes = await ReadAllAsync(manifestStream, cancellationToken);
             var parsed = SpamModelManifest.Parse(manifestBytes);
 
             var modelEntry = archive.GetEntry(parsed.ModelFile);
             if (modelEntry is null)
                 return null;
 
-            var loaded = await StageAndLoadAsync(staging, parsed, manifestBytes, modelEntry.Open(), cancellationToken);
+            await using var modelStream = modelEntry.Open();
+            var loaded = await StageAndLoadAsync(staging, parsed, manifestBytes, modelStream, cancellationToken);
             if (loaded is null)
                 return null;
 
+            string? movedAside = null;
             if (Directory.Exists(CustomDirectory))
-                Directory.Delete(CustomDirectory, recursive: true);
-            Directory.Move(staging, CustomDirectory);
+            {
+                movedAside = Path.Combine(_root, StagingPrefix + "old-" + Guid.NewGuid().ToString("N"));
+                Directory.Move(CustomDirectory, movedAside);
+            }
+
+            try
+            {
+                Directory.Move(staging, CustomDirectory);
+            }
+            catch
+            {
+                if (movedAside is not null && Directory.Exists(movedAside))
+                {
+                    if (Directory.Exists(CustomDirectory))
+                        TryDelete(CustomDirectory);
+                    Directory.Move(movedAside, CustomDirectory);
+                }
+
+                throw;
+            }
+
+            if (movedAside is not null)
+                TryDelete(movedAside);
+
             _customLoadFailed = false;
             return loaded;
         }

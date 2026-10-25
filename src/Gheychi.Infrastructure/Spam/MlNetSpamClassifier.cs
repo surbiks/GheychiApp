@@ -97,8 +97,11 @@ public sealed class MlNetSpamClassifier : ISpamClassifier, ISpamModelUpdater
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            _store.RemoveCustom();
-            Volatile.Write(ref _model, await Task.Run(() => _store.LoadActiveAsync(cancellationToken)));
+            Volatile.Write(ref _model, await Task.Run(async () =>
+            {
+                _store.RemoveCustom();
+                return await _store.LoadActiveAsync(cancellationToken);
+            }, cancellationToken));
         }
         finally
         {

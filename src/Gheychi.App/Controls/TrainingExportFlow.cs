@@ -16,32 +16,11 @@ internal static class TrainingExportFlow
         var loc = LocalizationManager.Instance;
         try
         {
-            bool? isSpam;
-            try
-            {
-                isSpam = await AskLabelAsync(loc);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Training export label sheet failed: {ex}");
-                Ui.Toast.Show(loc["Export_Failed"]);
-                return;
-            }
-
+            var isSpam = await AskLabelAsync(loc);
             if (isSpam is null)
                 return;
 
-            IReadOnlyList<string> prepared;
-            try
-            {
-                prepared = await Task.Run(async () => TrainingExport.Prepare(await collectTexts()));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Training export collection failed: {ex}");
-                Ui.Toast.Show(loc["Export_Failed"]);
-                return;
-            }
+            var prepared = await Task.Run(async () => TrainingExport.Prepare(await collectTexts()));
 
             if (prepared.Count == 0)
             {
@@ -58,7 +37,7 @@ internal static class TrainingExportFlow
             var localTime = DateTime.Now;
             var options = new FilePickerSaveOptions
             {
-                SuggestedFileName = TrainingExport.FileName(isSpam.Value, localTime),
+                SuggestedFileName = Path.GetFileNameWithoutExtension(TrainingExport.FileName(isSpam.Value, localTime)),
                 DefaultExtension = "json",
                 FileTypeChoices =
                 [
@@ -67,34 +46,15 @@ internal static class TrainingExportFlow
                 ],
             };
 
-            IStorageFile? target;
-            try
-            {
-                target = await storage.SaveFilePickerAsync(options);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Training export save picker failed: {ex}");
-                Ui.Toast.Show(loc["Export_Failed"]);
-                return;
-            }
-
+            var target = await storage.SaveFilePickerAsync(options);
             if (target is null)
                 return;
 
-            try
-            {
-                var json = TrainingExport.ToJson(prepared, isSpam.Value);
-                await using var stream = await target.OpenWriteAsync();
-                await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                await writer.WriteAsync(json);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Training export write failed: {ex}");
-                Ui.Toast.Show(loc["Export_Failed"]);
-                return;
-            }
+            var json = TrainingExport.ToJson(prepared, isSpam.Value);
+            await using var stream = await target.OpenWriteAsync();
+            await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            await writer.WriteAsync(json);
+            await writer.FlushAsync();
 
             Ui.Toast.Show(string.Format(loc["Export_Done"], LocalizedNumbers.Number(prepared.Count)));
         }
